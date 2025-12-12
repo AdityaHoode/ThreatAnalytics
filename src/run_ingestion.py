@@ -7,15 +7,15 @@ from datetime import datetime, timezone
 import asyncio
 from azure.kusto.data import KustoClient, KustoConnectionStringBuilder
 
-from src.core.ingestion_engine import Ingestor
-from src.core.chunk_reprocessor import Reprocessor
+from core.ingestion_engine import Ingestor
+from core.chunk_reprocessor import Reprocessor
 
 load_dotenv()
 
 bootstrap = {
-    "adx_cluster_uri": "https://kvc-t4efc4mq1p8d6sdfm5.southcentralus.kusto.windows.net",
-    "adx_ingest_uri": "https://ingest-kvc-t4efc4mq1p8d6sdfm5.southcentralus.kusto.windows.net",
-    "adx_database": "db1",
+    "adx_cluster_uri": "https://trd-jcardqn3uu42vj2eaw.z8.kusto.fabric.microsoft.com",
+    "adx_ingest_uri": "https://ingest-trd-jcardqn3uu42vj2eaw.z8.kusto.fabric.microsoft.com",
+    "adx_database": "eh_01",
     "defender_resource_uri":"https://api.security.microsoft.com",
     "defender_hunting_api_url": "https://api.security.microsoft.com/api/advancedhunting/run",
     "config_table": "meta_MigrationConfiguration",
@@ -111,3 +111,6 @@ async def main():
             ingestion_handler.thread_pool.shutdown(wait=True)
     else:
         return "[INFO] --> No active tables found for migration"
+
+if __name__ == "__main__":
+    asyncio.run(main())

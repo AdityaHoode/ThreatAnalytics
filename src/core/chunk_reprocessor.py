@@ -7,7 +7,7 @@ from datetime import timezone, datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple, Union
 from concurrent.futures import ThreadPoolExecutor
 
-from src.core.ingestion_engine import Ingestor
+from core.ingestion_engine import Ingestor
 
 class Reprocessor(Ingestor):
     
