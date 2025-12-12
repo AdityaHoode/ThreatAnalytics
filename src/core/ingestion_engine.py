@@ -240,7 +240,9 @@ class Ingestor:
 
     def ensure_table_exists(self, source_tbl: str, destination_folder: str, destination_tbl: str, watermark_column: str) -> None:
         try:
-            create_table_cmd = f".create-merge table R_{destination_tbl} ({watermark_column}: datetime, RawData: dynamic) with (folder = '{destination_folder}')"
+            bronze_destination_tbl = f"R_{destination_tbl}"
+            silver_destination_tbl = f"S_{destination_tbl}"
+            create_table_cmd = f".create-merge table {bronze_destination_tbl} ({watermark_column}: datetime, RawData: dynamic) with (folder = '{destination_folder}')"
             self.data_client.execute(self.bootstrap["adx_database"], create_table_cmd)
 
             silver_schema = self.get_table_schema(source_tbl)
@@ -250,26 +252,26 @@ class Ingestor:
                 col_type = result.get("ColumnType")
                 if col_name and col_type:
                     columns.append(f"    {col_name}: {col_type}")
-            silver_create_table_cmd = f".create table S_{destination_tbl} (\n"
+            silver_create_table_cmd = f".create table {silver_destination_tbl} (\n"
             silver_create_table_cmd += ",\n".join(columns)
             silver_create_table_cmd += "\n) with (folder = 'Silver')"
             self.data_client.execute(self.bootstrap["adx_database"], silver_create_table_cmd)
 
-            print(f"[INFO] --> Table {destination_tbl} created/verified")
+            print(f"[INFO] --> Table {bronze_destination_tbl} and {silver_destination_tbl} created/verified")
 
             mapping = [
                 {"column": watermark_column, "path": f"$.{watermark_column}", "datatype": "datetime"},
                 {"column": "RawData", "path": "$", "datatype": "dynamic"},
             ]
             create_mapping_cmd = (
-                f".create-or-alter table {destination_tbl} ingestion json mapping 'RawDataMap' "
+                f".create-or-alter table {bronze_destination_tbl} ingestion json mapping 'RawDataMap' "
                 f"'{json.dumps(mapping)}'"
             )            
             self.data_client.execute(self.bootstrap["adx_database"], create_mapping_cmd)
-            print(f"[INFO] --> Ingestion JSON mapping created for {destination_tbl}")
+            print(f"[INFO] --> Ingestion JSON mapping created for {bronze_destination_tbl}")
             
         except Exception as e:
-            print(f"[ERROR] --> Error creating table {destination_tbl}: {str(e)}")
+            print(f"[ERROR] --> Error creating table {bronze_destination_tbl}: {str(e)}")
             raise
 
     def meta_insert_configs(self, ingestion_results: Dict[str, Any], table_configs: List[Dict[str, Any]]) -> None:
