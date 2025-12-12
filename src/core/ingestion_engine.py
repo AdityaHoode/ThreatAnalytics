@@ -256,7 +256,7 @@ class Ingestor:
                     {
                         "IsEnabled": True,
                         "Source": destination_tbl,
-                        "Query": f"{destination_tbl} | extend parsed = parse_json(RawData) | evaluate bag_unpack(parsed, columnsConflict='replace_source')",
+                        "Query": f'{destination_tbl} | extend parsed = parse_json(RawData) | evaluate bag_unpack(parsed, columnsConflict="replace_source")',
                         "IsTransactional": True,
                         "PropagateIngestionProperties": True
                     }
