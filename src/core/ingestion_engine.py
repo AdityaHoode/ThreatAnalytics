@@ -251,26 +251,24 @@ class Ingestor:
                 col_type = result.get("ColumnType")
                 if col_name and col_type:
                     columns.append(f"    {col_name}: {col_type}")
-            update_policy = {
-                "UpdatePolicy": [
-                    {
-                        "IsEnabled": True,
-                        "Source": destination_tbl,
-                        "Query": f'{destination_tbl} | extend parsed = parse_json(RawData) | evaluate bag_unpack(parsed, columnsConflict="replace_source")',
-                        "IsTransactional": True,
-                        "PropagateIngestionProperties": True
-                    }
-                ]
-            }
-            policy_json_str = json.dumps(update_policy)
             silver_create_table_cmd = (
                 f".create table {silver_destination_tbl} (\n"
                 + ",\n".join(columns)
-                + "\n) with (folder = 'Silver',\n"
-                f"    policy = '{policy_json_str}'\n"
-                ")"
+                + "\n) with (folder = 'Silver')"
             )
             self.data_client.execute(self.bootstrap["adx_database"], silver_create_table_cmd)
+            policy = [
+                {
+                    "IsEnabled": True,
+                    "Source": destination_tbl,
+                    "Query": f"""{destination_tbl} | extend parsed = parse_json(RawData) | evaluate bag_unpack(parsed, columnsConflict='replace_source')""",
+                    "IsTransactional": True,
+                    "PropagateIngestionProperties": True
+                }
+            ]
+            policy_json = json.dumps(policy)
+            silver_alter_cmd = f""".alter table {silver_destination_tbl} policy update {policy_json}"""
+            self.data_client.execute(self.bootstrap["adx_database"], silver_alter_cmd)
 
             print(f"[INFO] --> Table {destination_tbl} and {silver_destination_tbl} created/verified")
 
