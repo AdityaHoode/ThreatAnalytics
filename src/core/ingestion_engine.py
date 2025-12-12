@@ -257,17 +257,8 @@ class Ingestor:
                 + "\n) with (folder = 'Silver')"
             )
             self.data_client.execute(self.bootstrap["adx_database"], silver_create_table_cmd)
-            policy = [
-                {
-                    "IsEnabled": True,
-                    "Source": destination_tbl,
-                    "Query": f"""{destination_tbl} | extend parsed = parse_json(RawData) | evaluate bag_unpack(parsed, columnsConflict='replace_source')""",
-                    "IsTransactional": True,
-                    "PropagateIngestionProperties": True
-                }
-            ]
-            policy_json = json.dumps(policy)
-            silver_alter_cmd = f""".alter table {silver_destination_tbl} policy update {policy_json}"""
+            policy = f'[{{"IsEnabled": true, "Source": "{destination_tbl}", "Query": "{destination_tbl}  | extend parsed = parse_json(RawData) | evaluate bag_unpack(parsed, columnsConflict=\'replace_source\')", "IsTransactional": true, "PropagateIngestionProperties": true}}]'
+            silver_alter_cmd = f".alter table {silver_destination_tbl} policy update \n```\n{policy}\n```"
             self.data_client.execute(self.bootstrap["adx_database"], silver_alter_cmd)
 
             print(f"[INFO] --> Table {destination_tbl} and {silver_destination_tbl} created/verified")
