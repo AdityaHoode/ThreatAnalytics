@@ -280,7 +280,6 @@ class Ingestor:
             up_query = f"""{destination_tbl} | extend parsed = parse_json(RawData) | project {','.join(project_cols)}"""
             policy = f'[{{"IsEnabled": true, "Source": "{destination_tbl}", "Query": "{up_query}", "IsTransactional": true, "PropagateIngestionProperties": true}}]'
             silver_alter_cmd = f".alter table {silver_destination_tbl} policy update \n```\n{policy}\n```"
-            print(silver_alter_cmd)
             self.data_client.execute(self.bootstrap["adx_database"], silver_alter_cmd)
 
             print(f"[INFO] --> Table {destination_tbl} and {silver_destination_tbl} created/verified")
