@@ -257,8 +257,30 @@ class Ingestor:
                 + "\n) with (folder = 'Silver')"
             )
             self.data_client.execute(self.bootstrap["adx_database"], silver_create_table_cmd)
-            policy = f'[{{"IsEnabled": true, "Source": "{destination_tbl}", "Query": "{destination_tbl}  | extend parsed = parse_json(RawData) | evaluate bag_unpack(parsed, columnsConflict=\'replace_source\')", "IsTransactional": true, "PropagateIngestionProperties": true}}]'
+
+            type_mapping = {
+                "string": "tostring",
+                "real": "toreal",
+                "bool": "tobool",
+                "datetime": "todatetime",
+                "int": "toint",
+                "long": "tolong",
+                "dynamic": None
+            }
+    
+            project_cols = []
+            for column in silver_schema:
+                col_name = column.get("ColumnName")
+                col_type = column.get("ColumnType")
+                conversion_func = type_mapping.get(col_type)
+                if conversion_func:
+                    project_cols.append(f"{col_name} = {conversion_func}(parsed.{col_name})")
+                else:
+                    project_cols.append(f"{col_name} = parsed.{col_name}")
+            up_query = f"""{destination_tbl} | extend parsed = parse_json(RawData) | project {','.join(project_cols)}"""
+            policy = f'[{{"IsEnabled": true, "Source": "{destination_tbl}", "Query": "{up_query}", "IsTransactional": true, "PropagateIngestionProperties": true}}]'
             silver_alter_cmd = f".alter table {silver_destination_tbl} policy update \n```\n{policy}\n```"
+            print(silver_alter_cmd)
             self.data_client.execute(self.bootstrap["adx_database"], silver_alter_cmd)
 
             print(f"[INFO] --> Table {destination_tbl} and {silver_destination_tbl} created/verified")
