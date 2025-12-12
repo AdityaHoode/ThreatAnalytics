@@ -2,6 +2,7 @@ import time
 import math
 import json
 import random
+import requests
 import urllib.parse
 from io import StringIO
 from datetime import timezone, datetime, timedelta
@@ -197,10 +198,63 @@ class Ingestor:
             print(f"[ERROR] --> Error calculating chunks: {e}")
             return 0, 0
 
-    def ensure_table_exists(self, destination_folder: str, destination_tbl: str, watermark_column: str) -> None:
+    def get_table_schema(self, source_tbl: str) -> str:
+        schema_query = f"{source_tbl} | getschema"
+        
         try:
-            create_table_cmd = f".create-merge table {destination_tbl} ({watermark_column}: datetime, RawData: dynamic) with (folder = '{destination_folder}')"
+            aad_token_url = f"https://login.microsoftonline.com/{self.bootstrap['tenantId']}/oauth2/token"
+            body = {
+                'resource': self.bootstrap["defender_resource_uri"],
+                'client_id': self.bootstrap["clientId"],
+                'client_secret': self.bootstrap["clientSecret"],
+                'grant_type': 'client_credentials'
+            }
+            response = requests.post(
+                aad_token_url,
+                data=urllib.parse.urlencode(body),
+                headers={'Content-Type': 'application/x-www-form-urlencoded'}
+            )
+            token_data = response.json()
+            defender_token = token_data["access_token"]
+            headers = {
+                "Authorization": f"Bearer {defender_token}",
+                "Content-Type": "application/json"
+            }
+
+            response = requests.post(
+                self.bootstrap['defender_hunting_api_url'],
+                headers=headers,
+                json={"Query": schema_query}
+            )
+            result = response.json()
+            records = result.get("Results", [])
+            if records and len(records) > 0:
+                return records
+            else:
+                error_text = response.text()
+                raise Exception(f"Failed to get table schema: {response.status} - {error_text}")
+                    
+        except Exception as e:
+            print(f"[ERROR] --> Error getting table schema: {str(e)}")
+            raise
+
+    def ensure_table_exists(self, source_tbl: str, destination_folder: str, destination_tbl: str, watermark_column: str) -> None:
+        try:
+            create_table_cmd = f".create-merge table R_{destination_tbl} ({watermark_column}: datetime, RawData: dynamic) with (folder = '{destination_folder}')"
             self.data_client.execute(self.bootstrap["adx_database"], create_table_cmd)
+
+            silver_schema = self.get_table_schema(source_tbl)
+            columns = []
+            for result in silver_schema:
+                col_name = result.get("ColumnName")
+                col_type = result.get("ColumnType")
+                if col_name and col_type:
+                    columns.append(f"    {col_name}: {col_type}")
+            silver_create_table_cmd = f".create table S_{destination_tbl} (\n"
+            silver_create_table_cmd += ",\n".join(columns)
+            silver_create_table_cmd += "\n) with (folder = 'Silver')"
+            self.data_client.execute(self.bootstrap["adx_database"], silver_create_table_cmd)
+
             print(f"[INFO] --> Table {destination_tbl} created/verified")
 
             mapping = [
@@ -779,11 +833,12 @@ class Ingestor:
                 await loop.run_in_executor(
                     self.thread_pool,
                     self.ensure_table_exists,
+                    config["SourceTable"],
                     config["DestinationFolder"],
                     config["DestinationTable"],
                     config["WatermarkColumn"]
                 )
-        
+    
         timeout = aiohttp.ClientTimeout(total=900)  # 15 minutes timeout
         connector = aiohttp.TCPConnector(limit=50, limit_per_host=10)  # Connection pooling
         
